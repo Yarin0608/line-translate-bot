@@ -22,20 +22,18 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 def translate_text(text):
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system",
-                "content": "你是一個中印尼翻譯助手，請幫助將中文和印尼文相互翻譯。"
-            },
-            {
-                "role": "user",
-                "content": text
-            }
-        ],
-    )
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "你是一個中印尼翻譯助手，請幫助將中文和印尼文相互翻譯。"},
+                {"role": "user", "content": text}
+            ],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"OpenAI API Error: {e}")
+        return "翻譯出錯，請稍後再試。"
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -46,16 +44,12 @@ def callback():
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
-
     return "OK"
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_text = event.message.text
-    try:
-        translated = translate_text(user_text)
-    except Exception as e:
-        translated = "翻譯出錯，請稍後再試。"
+    translated = translate_text(user_text)
 
     line_bot_api.reply_message(
         event.reply_token,
