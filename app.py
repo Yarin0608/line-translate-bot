@@ -12,17 +12,15 @@ line_bot_api = LineBotApi(os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-def translate_text(user_text):
-    system_prompt = "你是一個精通中印雙語的翻譯專家，請根據使用者輸入的語言，自動翻譯為中文或印尼文。請直接輸出翻譯內容，不要多說其他說明。"
-    response = openai.ChatCompletion.create(
+def translate_text(text):
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_text}
+            {"role": "system", "content": "你是一個中印尼翻譯助手，請幫助將中文和印尼文相互翻譯。"},
+            {"role": "user", "content": text},
         ],
-        temperature=0.3
     )
-    return response.choices[0].message['content'].strip()
+    return response.choices[0].message.content
 
 @app.route("/callback", methods=['POST'])
 def callback():
