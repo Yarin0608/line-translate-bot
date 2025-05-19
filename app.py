@@ -12,35 +12,31 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 
 if not (LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN):
-    raise Exception("請先設定 LINE_CHANNEL_SECRET 與 LINE_CHANNEL_ACCESS_TOKEN 環境變數")
+    raise Exception("請先設定 LINE_CHANNEL_SECRET 和 LINE_CHANNEL_ACCESS_TOKEN 環境變數")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# 使用 LibreTranslate 免費 API
+# LibreTranslate 翻譯函式
 def translate_text(text):
-    try:
-        # 自動偵測來源語言並翻譯為對應語言
-        data = {
-            "q": text,
-            "source": "auto",
-            "target": detect_target_language(text),
-            "format": "text"
-        }
-        response = requests.post("https://libretranslate.com/translate", data=data)
-        translated = response.json()["translatedText"]
-        return translated
-    except Exception as e:
-        print(f"翻譯錯誤：{e}")
-        return "翻譯出錯，請稍後再試。"
+    url = "https://libretranslate.de/translate"
+    payload = {
+        "q": text,
+        "source": "zh",   # 假設輸入是中文
+        "target": "id",   # 翻譯成印尼文
+        "format": "text"
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }
 
-# 偵測文字語言並決定翻譯方向（中翻印或印翻中）
-def detect_target_language(text):
-    # 假設含有中文字就翻成印尼文，否則翻成中文
-    if any('\u4e00' <= c <= '\u9fff' for c in text):
-        return "id"  # 翻譯成印尼文
-    else:
-        return "zh"  # 翻譯成中文
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        result = response.json()
+        return result["translatedText"]
+    except Exception as e:
+        return f"翻譯錯誤：{e}"
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -58,6 +54,7 @@ def callback():
 def handle_message(event):
     user_text = event.message.text
     translated = translate_text(user_text)
+
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(text=translated)
