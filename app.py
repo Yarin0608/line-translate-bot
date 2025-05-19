@@ -1,39 +1,45 @@
 import os
-import requests
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+import requests
 
 app = Flask(__name__)
 
-# 讀取環境變數
+# 讀環境變數
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 
-if not LINE_CHANNEL_SECRET or not LINE_CHANNEL_ACCESS_TOKEN:
-    raise Exception("請設定 LINE_CHANNEL_SECRET 和 LINE_CHANNEL_ACCESS_TOKEN 環境變數")
+if not (LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN):
+    raise Exception("請先設定 LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN 環境變數")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
+# 使用較穩定的 LibreTranslate 節點
+TRANSLATE_URL = "https://translate.argosopentech.com"
+
 def detect_language(text):
-    # 自動語言判斷（LibreTranslate 支援）
-    url = "https://libretranslate.de/detect"
     try:
-        response = requests.post(url, data={"q": text}, timeout=5)
-        response.raise_for_status()
-        lang_code = response.json()[0]['language']
-        return lang_code
+        response = requests.post(
+            f"{TRANSLATE_URL}/detect",
+            data={"q": text},
+            timeout=5
+        )
+        print("語言偵測原始回應：", response.text)
+        data = response.json()
+        return data[0]["language"] if data else None
     except Exception as e:
-        print("語言判斷錯誤：", e)
-        return "zh"  # 預設中文
+        print("語言判斷錯誤：", str(e))
+        return None
 
 def translate_text(text):
     source_lang = detect_language(text)
-    target_lang = "id" if source_lang == "zh" else "zh"
+    if source_lang not in ["zh", "id"]:
+        return "⚠️ 無法辨識語言，只支援中文與印尼文。"
 
-    url = "https://libretranslate.de/translate"
+    target_lang = "id" if source_lang == "zh" else "zh"
     payload = {
         "q": text,
         "source": source_lang,
@@ -42,18 +48,14 @@ def translate_text(text):
     }
 
     try:
-        response = requests.post(url, data=payload, timeout=10)
-        response.raise_for_status()
+        response = requests.post(f"{TRANSLATE_URL}/translate", data=payload, timeout=10)
+        print("翻譯原始回應：", response.text)
         data = response.json()
         translated_text = data.get("translatedText")
-        if translated_text:
-            return translated_text
-        else:
-            print("翻譯錯誤：找不到 translatedText")
-            return "翻譯錯誤，請稍後再試。"
+        return translated_text if translated_text else "⚠️ 翻譯失敗，請稍後再試。"
     except Exception as e:
-        print("翻譯錯誤：", e)
-        return "翻譯出錯，請稍後再試。"
+        print("翻譯錯誤：", str(e))
+        return "⚠️ 翻譯出錯，請稍後再試。"
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -64,10 +66,6 @@ def callback():
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
-    except Exception as e:
-        print("處理訊息時錯誤：", e)
-        # 即使錯誤也讓 LINE 收到 200 回應
-        return "OK"
 
     return "OK"
 
