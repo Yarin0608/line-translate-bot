@@ -1,32 +1,28 @@
+import os
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os
 import openai
 
 app = Flask(__name__)
 
-LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+# 設定 LINE 與 OpenAI 的金鑰
+line_bot_api = LineBotApi(os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
+handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
-openai.api_key = OPENAI_API_KEY
-
-def translate_text(text):
-    if any('\u4e00' <= char <= '\u9fff' for char in text):  # 有中文
-        prompt = f"請將以下中文翻譯成印尼文：{text}"
-    else:
-        prompt = f"Please translate this Indonesian text to Chinese: {text}"
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=100,
-        temperature=0.5,
+def translate_text(user_text):
+    system_prompt = "你是一個精通中印雙語的翻譯專家，請根據使用者輸入的語言，自動翻譯為中文或印尼文。請直接輸出翻譯內容，不要多說其他說明。"
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text}
+        ],
+        temperature=0.3
     )
-    return response.choices[0].text.strip()
+    return response.choices[0].message['content'].strip()
 
 @app.route("/callback", methods=['POST'])
 def callback():
