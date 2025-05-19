@@ -7,36 +7,44 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 
 app = Flask(__name__)
 
-# 讀取環境變數
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 
 if not (LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN):
-    raise Exception("請先設定 LINE_CHANNEL_SECRET 和 LINE_CHANNEL_ACCESS_TOKEN 環境變數")
+    raise Exception("請先設定 LINE_CHANNEL_SECRET 與 LINE_CHANNEL_ACCESS_TOKEN 環境變數")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# LibreTranslate 翻譯函式
+# LibreTranslate API URL (免費版本不用 key)
+LIBRETRANSLATE_URL = "https://libretranslate.com/translate"
+
 def translate_text(text):
-    url = "https://libretranslate.de/translate"
+    # 判斷語言簡單示範，中文就翻印尼文，反之亦然
+    source_lang = "zh"
+    target_lang = "id"
+    if any('\u4e00' <= ch <= '\u9fff' for ch in text):
+        source_lang = "zh"
+        target_lang = "id"
+    else:
+        source_lang = "id"
+        target_lang = "zh"
+
     payload = {
         "q": text,
-        "source": "zh",   # 假設輸入是中文
-        "target": "id",   # 翻譯成印尼文
+        "source": source_lang,
+        "target": target_lang,
         "format": "text"
-    }
-    headers = {
-        "Content-Type": "application/json"
     }
 
     try:
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        result = response.json()
-        return result["translatedText"]
+        res = requests.post(LIBRETRANSLATE_URL, data=payload, timeout=5)
+        res.raise_for_status()
+        result = res.json()
+        return result.get("translatedText", "翻譯失敗")
     except Exception as e:
-        return f"翻譯錯誤：{e}"
+        print("LibreTranslate error:", e)
+        return "翻譯出錯，請稍後再試。"
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -54,7 +62,6 @@ def callback():
 def handle_message(event):
     user_text = event.message.text
     translated = translate_text(user_text)
-
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(text=translated)
