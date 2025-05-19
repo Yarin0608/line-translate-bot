@@ -7,55 +7,42 @@ import requests
 
 app = Flask(__name__)
 
-# 讀環境變數
+# 讀取環境變數
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 
 if not (LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN):
-    raise Exception("請先設定 LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN 環境變數")
+    raise Exception("請先設定 LINE_CHANNEL_SECRET 和 LINE_CHANNEL_ACCESS_TOKEN 環境變數")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# 使用備援的 LibreTranslate 伺服器
-LIBRE_URL = "https://translate.argosopentech.com"
-
-def detect_language(text):
-    try:
-        response = requests.post(
-            f"{LIBRE_URL}/detect",
-            data={"q": text},
-            timeout=5
-        )
-        response.raise_for_status()
-        detections = response.json()
-        if detections:
-            return detections[0]["language"]
-    except Exception as e:
-        print(f"語言判斷錯誤：{e}")
-    return None
-
 def translate_text(text):
-    source_lang = detect_language(text)
-    if source_lang not in ["zh", "id"]:
-        return "無法辨識語言，只支援中文與印尼文互譯喔！"
-
-    target_lang = "id" if source_lang == "zh" else "zh"
-    payload = {
-        "q": text,
-        "source": source_lang,
-        "target": target_lang,
-        "format": "text"
-    }
-
     try:
-        response = requests.post(f"{LIBRE_URL}/translate", data=payload, timeout=5)
-        response.raise_for_status()
+        # 簡單判斷語言（中文 or 印尼文）
+        if any('\u4e00' <= c <= '\u9fff' for c in text):
+            source = "zh"
+            target = "id"
+        else:
+            source = "id"
+            target = "zh"
+
+        url = "https://api.mymemory.translated.net/get"
+        params = {
+            "q": text,
+            "langpair": f"{source}|{target}"
+        }
+
+        response = requests.get(url, params=params, timeout=10)
         data = response.json()
-        return data.get("translatedText", "翻譯失敗，請稍後再試。")
+
+        translated_text = data.get("responseData", {}).get("translatedText")
+        if not translated_text:
+            return "翻譯錯誤，請稍後再試。"
+        return translated_text
     except Exception as e:
-        print(f"翻譯錯誤：{e}")
-        return f"翻譯錯誤：{e}"
+        print("翻譯錯誤：", str(e))
+        return f"翻譯錯誤：{str(e)}"
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -73,6 +60,7 @@ def callback():
 def handle_message(event):
     user_text = event.message.text
     translated = translate_text(user_text)
+
     line_bot_api.reply_message(
         event.reply_token,
         TextSendMessage(text=translated)
