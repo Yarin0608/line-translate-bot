@@ -24,7 +24,7 @@ def translate_text(text):
     url = "https://api.mymemory.translated.net/get"
     params = {
         "q": text,
-        "langpair": "zh|jp" if any('\u4e00' <= c <= '\u9fff' for c in text) else "id|jp"
+        "langpair": "zh|ja" if any('\u4e00' <= c <= '\u9fff' for c in text) else "id|ja"
     }
     try:
         response = requests.get(url, params=params, timeout=5)
