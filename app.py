@@ -18,25 +18,24 @@ if not (LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN):
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-cc = OpenCC('s2t')  # 將簡體轉成繁體
+# 建立簡轉繁轉換器
+cc = OpenCC('s2t')
 
-# 判斷是否包含平假名或片假名（即日文）
-def contains_japanese_kana(text):
-    return any('\u3040' <= c <= '\u30ff' for c in text)
-
-# 判斷是否包含中文字（但不一定是中文語言）
-def contains_chinese_char(text):
-    return any('\u4e00' <= c <= '\u9fff' for c in text)
+# 判斷是否為日文（包含平假名、片假名、日文漢字）
+def is_japanese(text):
+    return any(
+        '\u3040' <= c <= '\u309F' or  # 平假名
+        '\u30A0' <= c <= '\u30FF' or  # 片假名
+        '\u4E00' <= c <= '\u9FFF'     # 漢字（中文和日文共用）
+        for c in text
+    )
 
 def translate_text(text):
-    # 如果有假名，視為日文 → 翻譯成中文
-    if contains_japanese_kana(text):
+    # 判斷是否為日文
+    if is_japanese(text):
         langpair = "ja|zh-TW"
-    # 否則如果只有中文字，視為中文 → 翻譯成日文
-    elif contains_chinese_char(text):
-        langpair = "zh-TW|ja"
     else:
-        return "請輸入中文或日文來翻譯喔！翻訳するには中国語または日本語を入力してください。"
+        langpair = "auto|ja"
 
     url = "https://api.mymemory.translated.net/get"
     params = {
@@ -51,9 +50,8 @@ def translate_text(text):
         translated_text = data.get("responseData", {}).get("translatedText", "")
         if not translated_text:
             return "翻譯失敗，請稍後再試。"
-        # 若翻成中文，先轉繁體
         if langpair == "ja|zh-TW":
-            translated_text = OpenCC('s2t').convert(translated_text)
+            translated_text = cc.convert(translated_text)
         return translated_text
     except Exception as e:
         print("翻譯錯誤:", e)
@@ -74,12 +72,4 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_text = event.message.text
-    translated = translate_text(user_text)
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=translated)
-    )
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    translated = translate_text_
