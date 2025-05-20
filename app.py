@@ -22,23 +22,10 @@ cc = OpenCC('s2t')  # 簡體轉繁體
 
 def translate_text(text):
     url = "https://api.mymemory.translated.net/get"
-
-    # 判斷語言方向
-    has_kana = any('\u3040' <= c <= '\u30ff' for c in text)  # 假名：平假名 + 片假名
-    has_cjk = any('\u4e00' <= c <= '\u9fff' for c in text)   # CJK 漢字（中日共用）
-
-    if has_kana:
-        langpair = "ja|zh"  # 偵測到日文，翻譯成中文
-    elif has_cjk:
-        langpair = "zh|ja"  # 偵測到中文，翻譯成日文
-    else:
-        langpair = "zh|ja"  # 預設當成中文 → 日文
-
     params = {
         "q": text,
-        "langpair": langpair
+        "langpair": "zh|ja" if any('\u4e00' <= c <= '\u9fff' for c in text) else "id|ja"
     }
-
     try:
         response = requests.get(url, params=params, timeout=5)
         response.raise_for_status()
@@ -46,11 +33,8 @@ def translate_text(text):
         translated_text = data.get("responseData", {}).get("translatedText")
         if not translated_text:
             return "翻譯失敗，請稍後再試。"
-
-        # 如果翻成中文（預設簡體），轉成繁體
-        if "zh" in langpair and langpair.startswith("ja"):
-            translated_text = cc.convert(translated_text)
-
+        # MyMemory 回傳的是簡體中文，轉成繁體
+        translated_text = cc.convert(translated_text)
         return translated_text
     except Exception as e:
         print("翻譯錯誤:", e)
