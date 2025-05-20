@@ -3,3 +3,4 @@ line-bot-sdk
 requests
 opencc-python-reimplemented
 gunicorn
+langdetect
