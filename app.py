@@ -36,6 +36,7 @@ def translate_text(text):
     elif contains_chinese_char(text):
         langpair = "zh-TW|ja"
     else:
+        langpair = "zh-TW|ja"
         return "請輸入中文或日文來翻譯喔！翻訳するには中国語または日本語を入力してください。"
 
     url = "https://api.mymemory.translated.net/get"
