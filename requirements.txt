@@ -1,4 +1,6 @@
-flask
+Flask
 line-bot-sdk
-openai
+requests
+opencc-python-reimplemented
 gunicorn
+langdetect
