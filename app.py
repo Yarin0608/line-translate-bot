@@ -20,19 +20,21 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 cc = OpenCC('s2t')  # 將簡體轉成繁體
 
-# 偵測文字中是否包含中文
-def contains_chinese(text):
+# 判斷是否包含平假名或片假名（即日文）
+def contains_japanese_kana(text):
+    return any('\u3040' <= c <= '\u30ff' for c in text)
+
+# 判斷是否包含中文字（但不一定是中文語言）
+def contains_chinese_char(text):
     return any('\u4e00' <= c <= '\u9fff' for c in text)
 
-# 偵測文字中是否包含日文（假名）
-def contains_japanese(text):
-    return any('\u3040' <= c <= '\u30ff' or '\u4e00' <= c <= '\u9fff' for c in text)
-
 def translate_text(text):
-    if contains_chinese(text):
-        langpair = "zh-TW|ja"
-    elif contains_japanese(text):
+    # 如果有假名，視為日文 → 翻譯成中文
+    if contains_japanese_kana(text):
         langpair = "ja|zh-TW"
+    # 否則如果只有中文字，視為中文 → 翻譯成日文
+    elif contains_chinese_char(text):
+        langpair = "zh-TW|ja"
     else:
         return "請輸入中文或日文來翻譯喔！翻訳するには中国語または日本語を入力してください。"
 
@@ -49,9 +51,9 @@ def translate_text(text):
         translated_text = data.get("responseData", {}).get("translatedText", "")
         if not translated_text:
             return "翻譯失敗，請稍後再試。"
-        # 如果翻譯結果是簡體中文，轉成繁體
+        # 若翻成中文，先轉繁體
         if langpair == "ja|zh-TW":
-            translated_text = cc.convert(translated_text)
+            translated_text = OpenCC('s2t').convert(translated_text)
         return translated_text
     except Exception as e:
         print("翻譯錯誤:", e)
